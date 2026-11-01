@@ -45,3 +45,7 @@ required-features = ["native-serial"]
 [[example]]
 name = "dump_eeprom"
 required-features = ["native-serial"]
+
+[[example]]
+name = "watch_memory"
+required-features = ["native-serial"]

@@ -21,6 +21,7 @@ Several examples are provided to demonstrate the crate's functionality:
 - **`find_keys`**: finds the diagnostic keys of a device using a brute-force search
 - **`dump_memory`**: reads RAM and ROM data from a supported device and writes them to a file
 - **`dump_eeprom`**: reads the EEPROM contents from a supported device and writes them to a file
+- **`watch_memory`**: polls a memory range using the given diagnostic keys and prints every byte that changes, useful for reverse engineering unsupported devices
 
 An example can be executed with the following command, replacing `<EXAMPLE>` with the desired example name:
 

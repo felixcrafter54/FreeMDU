@@ -5,3 +5,4 @@ internal/
 
 # Local device dumps (may contain firmware / device data)
 *_dump*.bin
+memory_watch.csv
