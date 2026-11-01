@@ -2,3 +2,6 @@ target/
 internal/
 .vscode/
 .zed/
+
+# Local device dumps (may contain firmware / device data)
+*_dump*.bin

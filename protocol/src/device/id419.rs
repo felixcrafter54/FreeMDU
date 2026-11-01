@@ -1,6 +1,7 @@
 //! Device support for W 8xx/9xx series washing machines.
 //!
-//! Supports appliances with software ID 419, which typically use an EDPW 206 board or similar.
+//! Supports appliances with software IDs 419 and 249, which typically use an EDPW 206 board or similar.
+//! Software ID 249 uses the same diagnostic keys and memory layout as 419 (experimental).
 //!
 //! A washing machine instance can be obtained using [`WashingMachine::connect`],
 //! giving access to all device-specific methods the appliance offers.
@@ -20,7 +21,7 @@ use strum::{Display, EnumString, FromRepr, VariantNames};
 
 macro_rules! compatible_software_ids {
     () => {
-        419
+        419 | 249
     };
 }
 pub(super) use compatible_software_ids;
