@@ -12,11 +12,13 @@
 //! ```shell
 //! cargo run --all-features --example watch_memory -- \
 //!     --read-key 0809 [--full-key 5804] [--start 0000] [--end 00ff] \
-//!     [--interval 250] [--learn 0] [--port /dev/ttyACM0]
+//!     [--interval 250] [--learn 0] [--mute 0011,0013] [--port /dev/ttyACM0]
 //! ```
 //!
 //! Keys and addresses are hexadecimal. With `--learn <seconds>`, addresses
 //! that change during the initial learning phase (e.g. timers) are muted.
+//! Known noisy addresses can also be muted explicitly using `--mute`.
+//! Muted addresses are not printed, but still written to the log file.
 
 use freemdu::{Interface, serial::Port};
 use std::{
@@ -29,7 +31,8 @@ use std::{
 };
 use tokio::time;
 
-const CHUNK_SIZE: usize = 0x10;
+// Older devices support reading at most 255 bytes at once
+const CHUNK_SIZE: usize = 0x80;
 const READ_TIMEOUT: Duration = Duration::from_millis(1000);
 const ERROR_RETRY_DELAY: Duration = Duration::from_secs(4);
 
@@ -41,6 +44,7 @@ struct Options {
     end: u32,
     interval: Duration,
     learn: Duration,
+    mute: Vec<u32>,
 }
 
 fn parse_hex(val: &str) -> Result<u32, Box<dyn Error>> {
@@ -56,6 +60,7 @@ fn parse_options() -> Result<Options, Box<dyn Error>> {
         end: 0x00ff,
         interval: Duration::from_millis(250),
         learn: Duration::ZERO,
+        mute: Vec::new(),
     };
     let mut read_key = None;
     let mut args = std::env::args().skip(1);
@@ -71,6 +76,11 @@ fn parse_options() -> Result<Options, Box<dyn Error>> {
             "--end" => opts.end = parse_hex(&val)?,
             "--interval" => opts.interval = Duration::from_millis(val.parse()?),
             "--learn" => opts.learn = Duration::from_secs(val.parse()?),
+            "--mute" => {
+                for addr in val.split(',') {
+                    opts.mute.push(parse_hex(addr)?);
+                }
+            }
             _ => return Err(format!("Unknown argument: {arg}").into()),
         }
     }
@@ -116,12 +126,15 @@ async fn read_range(intf: &mut Interface<Port>, opts: &Options) -> Result<Vec<u8
     Ok(data)
 }
 
-fn print_hexdump(start: u32, data: &[u8]) {
-    for (i, line) in data.chunks(0x10).enumerate() {
-        let bytes: Vec<String> = line.iter().map(|b| format!("{b:02x}")).collect();
+fn hexdump(start: u32, data: &[u8]) -> Vec<String> {
+    data.chunks(0x10)
+        .enumerate()
+        .map(|(i, line)| {
+            let bytes: Vec<String> = line.iter().map(|b| format!("{b:02x}")).collect();
 
-        println!("{:04x}: {}", start as usize + i * 0x10, bytes.join(" "));
-    }
+            format!("{:04x}: {}", start as usize + i * 0x10, bytes.join(" "))
+        })
+        .collect()
 }
 
 #[tokio::main]
@@ -155,6 +168,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let begin = Instant::now();
     let mut prev: Option<Vec<u8>> = None;
     let mut muted = vec![false; (opts.end - opts.start + 1) as usize];
+
+    for addr in &opts.mute {
+        if let Some(m) = addr
+            .checked_sub(opts.start)
+            .and_then(|i| muted.get_mut(i as usize))
+        {
+            *m = true;
+        }
+    }
     let mut marker = 0;
     let mut learned = opts.learn.is_zero();
 
@@ -194,7 +216,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match &prev {
             None => {
                 println!("Initial memory contents:");
-                print_hexdump(opts.start, &data);
+
+                for line in hexdump(opts.start, &data) {
+                    println!("{line}");
+                    writeln!(log, "# initial {line}")?;
+                }
             }
             Some(prev) => {
                 for (i, (old, new)) in prev.iter().zip(&data).enumerate() {
